@@ -6,7 +6,6 @@ import (
 	"go.uber.org/zap"
 	"net"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -37,12 +36,6 @@ type Options struct {
 	// Maximum number of retries before giving up.
 	// Default is 3 retries; -1 (not 0) disables retries.
 	MaxRetries int
-	// Minimum backoff between each retry.
-	// Default is 8 milliseconds; -1 disables backoff.
-	MinRetryBackoff time.Duration
-	// Maximum backoff between each retry.
-	// Default is 512 milliseconds; -1 disables backoff.
-	MaxRetryBackoff time.Duration
 
 	// Dial timeout for establishing new connections.
 	// Default is 5 seconds.
@@ -59,10 +52,6 @@ type Options struct {
 	// Maximum number of socket connections.
 	// Default is 10 connections per every available CPU as reported by runtime.GOMAXPROCS.
 	PoolSize int32
-	// Amount of time client waits for connection if all connections
-	// are busy before returning an error.
-	// Default is ReadTimeout + 1 second.
-	PoolTimeout time.Duration
 	// Minimum number of idle connections which is useful when establishing
 	// new connection is slow.
 	MinIdleConns int32
@@ -74,7 +63,7 @@ type Options struct {
 	ConnMaxIdleTime time.Duration
 	// Connection age at which client retires (closes) the connection.
 	// Default is to not close aged connections.
-	ConnMaxLifetime time.Duration
+	ConnMaxLifeTime time.Duration
 
 	// TLS Config to use. When set TLS will be negotiated.
 	TLSConfig *tls.Config
@@ -83,18 +72,56 @@ type Options struct {
 }
 
 func (opt *Options) init() {
-	if opt.Addr == "" {
-		opt.Addr = "localhost:6379"
-	}
+	var (
+		network         = "tcp"
+		addr            = "localhost:6379"
+		poolSize        = runtime.GOMAXPROCS(0) * 10
+		dialTimeout     = time.Second * 5
+		readTimeout     = time.Second * 3
+		writeTimeout    = time.Second * 3
+		minIdleConnectx = poolSize >> 4
+		maxIdleConnectx = poolSize >> 2
+		connMaxIdleTime = time.Minute * 30
+		connMaxLifeTime = time.Hour
+		maxRetries      = 3
+		logger          = zap.S()
+	)
+
 	if opt.Network == "" {
-		if strings.HasPrefix(opt.Addr, "/") {
-			opt.Network = "unix"
-		} else {
-			opt.Network = "tcp"
-		}
+		opt.Network = network
+	}
+	if opt.Addr == "" {
+		opt.Addr = addr
+	}
+	if opt.PoolSize == 0 {
+		opt.PoolSize = int32(poolSize)
 	}
 	if opt.DialTimeout == 0 {
-		opt.DialTimeout = 5 * time.Second
+		opt.DialTimeout = dialTimeout
+	}
+	if opt.ReadTimeout == 0 {
+		opt.ReadTimeout = readTimeout
+	}
+	if opt.WriteTimeout == 0 {
+		opt.WriteTimeout = writeTimeout
+	}
+	if opt.MinIdleConns == 0 {
+		opt.MinIdleConns = int32(minIdleConnectx)
+	}
+	if opt.MaxIdleConns == 0 {
+		opt.MaxIdleConns = int32(maxIdleConnectx)
+	}
+	if opt.ConnMaxIdleTime == 0 {
+		opt.ConnMaxIdleTime = connMaxIdleTime
+	}
+	if opt.ConnMaxLifeTime == 0 {
+		opt.ConnMaxLifeTime = connMaxLifeTime
+	}
+	if opt.MaxRetries == 0 {
+		opt.MaxRetries = maxRetries
+	}
+	if opt.Logger == nil {
+		opt.Logger = logger
 	}
 	if opt.Dialer == nil {
 		opt.Dialer = func(ctx context.Context) (net.Conn, error) {
@@ -107,48 +134,5 @@ func (opt *Options) init() {
 			}
 			return tls.DialWithDialer(netDialer, opt.Network, opt.Addr, opt.TLSConfig)
 		}
-	}
-	if opt.PoolSize == 0 {
-		opt.PoolSize = 10 * int32(runtime.GOMAXPROCS(0))
-	}
-	switch opt.ReadTimeout {
-	case -1:
-		opt.ReadTimeout = 0
-	case 0:
-		opt.ReadTimeout = 3 * time.Second
-	}
-	switch opt.WriteTimeout {
-	case -1:
-		opt.WriteTimeout = 0
-	case 0:
-		opt.WriteTimeout = opt.ReadTimeout
-	}
-	if opt.PoolTimeout == 0 {
-		opt.PoolTimeout = opt.ReadTimeout + time.Second
-	}
-	if opt.ConnMaxIdleTime == 0 {
-		opt.ConnMaxIdleTime = 30 * time.Minute
-	}
-
-	if opt.MaxRetries == -1 {
-		opt.MaxRetries = 0
-	} else if opt.MaxRetries == 0 {
-		opt.MaxRetries = 3
-	}
-	switch opt.MinRetryBackoff {
-	case -1:
-		opt.MinRetryBackoff = 0
-	case 0:
-		opt.MinRetryBackoff = 8 * time.Millisecond
-	}
-	switch opt.MaxRetryBackoff {
-	case -1:
-		opt.MaxRetryBackoff = 0
-	case 0:
-		opt.MaxRetryBackoff = 512 * time.Millisecond
-	}
-
-	if opt.Logger == nil {
-		opt.Logger = zap.S()
 	}
 }

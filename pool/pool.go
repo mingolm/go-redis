@@ -23,27 +23,18 @@ func NewPool(opt *Options) Pooler {
 		Options: opt,
 		conns:   make(chan *Conn, opt.PoolSize),
 	}
-	p.PoolSize.Swap(opt.PoolSize)
-	p.MinIdleConns.Swap(opt.MinIdleConns)
-	p.MaxIdleConns.Swap(opt.MaxIdleConns)
 	p.initConnects()
 	return p
 }
 
 type pool struct {
 	*Options
-	PoolSize     atomic.Int32 // 连接池长度
-	MinIdleConns atomic.Int32 // 最小空闲连接
-	MaxIdleConns atomic.Int32 // 最大空闲连接
-	conns        chan *Conn
+	poolSize atomic.Int32 // 连接池长度
+	conns    chan *Conn
 }
 
 func (p *pool) initConnects() {
-	for {
-		cur := p.MaxIdleConns.Add(-1)
-		if cur <= 0 {
-			break
-		}
+	for i := int32(0); i < p.MinIdleConns; i++ {
 		go func() {
 			if err := p.addConnect(); err != nil {
 				p.Logger.Errorw("pool connect dialer failed",
@@ -117,24 +108,40 @@ func (p *pool) Put(ctx context.Context, conn *Conn) error {
 }
 
 func (p *pool) addConnect() error {
-	if p.PoolSize.Load() <= 0 {
-		return ErrMaxPoolSize
+	for cur := p.poolSize.Add(1); cur <= p.Options.PoolSize; {
+		conn, err := p.Dialer(context.TODO())
+		if err != nil {
+			return err
+		}
+		var typ connTyp
+		if cur <= p.Options.MinIdleConns {
+			typ = connTypPersistence
+		} else if cur <= p.Options.MaxIdleConns {
+			typ = connTypBackup
+		} else {
+			typ = connTypTmp
+		}
+
+		cn := NewConnect(conn)
+		cn.typ = typ
+
+		select {
+		case p.conns <- cn:
+			return nil
+		default:
+			p.Logger.Errorw("connect pool add failed",
+				"err", errors.New("full"),
+			)
+			if err = p.connClose(cn); err != nil {
+				p.Logger.Errorw("connect close failed",
+					"err", err,
+				)
+			}
+			return nil
+		}
 	}
 
-	conn, err := p.Dialer(context.TODO())
-	if err != nil {
-		return err
-	}
-	select {
-	case p.conns <- NewConnect(conn):
-		p.PoolSize.Store(-1)
-		return nil
-	default:
-		p.Logger.Errorw("connect pool add failed",
-			"err", errors.New("full"),
-		)
-		return nil
-	}
+	return ErrMaxPoolSize
 }
 
 func (p *pool) connHealthCheck(conn *Conn) bool {
@@ -162,16 +169,7 @@ func (p *pool) connClose(conn *Conn) error {
 	if err := conn.netConn.Close(); err != nil {
 		return err
 	}
-
-	switch conn.typ {
-	case connTypPersistence:
-		p.MinIdleConns.Store(-1)
-		p.initConnects()
-	case connTypBackup:
-		p.MaxIdleConns.Store(-1)
-	case connTypTmp:
-		p.PoolSize.Store(1)
-	}
-
+	p.poolSize.Store(-1)
+	conn = nil
 	return nil
 }

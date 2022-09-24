@@ -20,7 +20,7 @@ func NewClient(opt *Options) *Redis {
 			MinIdleConns:    opt.MinIdleConns,
 			MaxIdleConns:    opt.MaxIdleConns,
 			ConnMaxIdleTime: opt.ConnMaxIdleTime,
-			ConnMaxLifetime: opt.ConnMaxLifetime,
+			ConnMaxLifetime: opt.ConnMaxLifeTime,
 			Logger:          opt.Logger,
 		}),
 	}
