@@ -10,30 +10,36 @@ import (
 )
 
 func main() {
-	cli := go_redis.NewClient(&go_redis.Options{
+	redis := go_redis.NewClient(&go_redis.Options{
 		Addr:     "127.0.0.1:6379",
 		Password: "",
 	})
 
 	var (
-		key = "test_key_2"
+		key = "name"
 		ctx = context.Background()
 	)
 
-	err := cli.Set(ctx, key, "123", time.Second).Err()
+	err := redis.Set(ctx, key, "mingo", time.Second).Err()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("val: ", cli.Get(ctx, key).String())
+	val, err := redis.Get(ctx, key).Result()
+	if err != nil {
+		panic(err)
+	}
+
+	if val != "mingo" {
+		panic(errors.New("redis internal error"))
+	}
 
 	time.Sleep(time.Second)
 
-	if _, err := cli.Get(ctx, key).Result(); err != nil {
-		if errors.Is(err, proto.Nil) {
-			fmt.Println("ok")
-		} else {
-			panic(err)
-		}
+	// test key expire
+	if err = redis.Get(ctx, key).Err(); err != proto.Nil {
+		panic(errors.New("redis internal error"))
 	}
+
+	fmt.Println("ok")
 }
