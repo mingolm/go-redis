@@ -3,6 +3,7 @@ package go_redis
 import (
 	"context"
 	"crypto/tls"
+	"go.uber.org/zap"
 	"net"
 	"runtime"
 	"strings"
@@ -18,7 +19,7 @@ type Options struct {
 
 	// Dialer creates new network connection and has priority over
 	// Network and Addr options.
-	Dialer func(ctx context.Context, network, addr string) (net.Conn, error)
+	Dialer func(ctx context.Context) (net.Conn, error)
 
 	// Use the specified Username to authenticate the current connection
 	// with one of the connections defined in the ACL list when connecting
@@ -57,16 +58,16 @@ type Options struct {
 
 	// Maximum number of socket connections.
 	// Default is 10 connections per every available CPU as reported by runtime.GOMAXPROCS.
-	PoolSize int
+	PoolSize int64
 	// Amount of time client waits for connection if all connections
 	// are busy before returning an error.
 	// Default is ReadTimeout + 1 second.
 	PoolTimeout time.Duration
 	// Minimum number of idle connections which is useful when establishing
 	// new connection is slow.
-	MinIdleConns int
+	MinIdleConns int64
 	// Maximum number of idle connections.
-	MaxIdleConns int
+	MaxIdleConns int64
 	// Amount of time after which client closes idle connections.
 	// Should be less than server's timeout.
 	// Default is 5 minutes. -1 disables idle timeout check.
@@ -77,6 +78,8 @@ type Options struct {
 
 	// TLS Config to use. When set TLS will be negotiated.
 	TLSConfig *tls.Config
+	// zap logger
+	Logger *zap.SugaredLogger
 }
 
 func (opt *Options) init() {
@@ -94,19 +97,19 @@ func (opt *Options) init() {
 		opt.DialTimeout = 5 * time.Second
 	}
 	if opt.Dialer == nil {
-		opt.Dialer = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		opt.Dialer = func(ctx context.Context) (net.Conn, error) {
 			netDialer := &net.Dialer{
 				Timeout:   opt.DialTimeout,
 				KeepAlive: 5 * time.Minute,
 			}
 			if opt.TLSConfig == nil {
-				return netDialer.DialContext(ctx, network, addr)
+				return netDialer.DialContext(ctx, opt.Network, opt.Addr)
 			}
-			return tls.DialWithDialer(netDialer, network, addr, opt.TLSConfig)
+			return tls.DialWithDialer(netDialer, opt.Network, opt.Addr, opt.TLSConfig)
 		}
 	}
 	if opt.PoolSize == 0 {
-		opt.PoolSize = 10 * runtime.GOMAXPROCS(0)
+		opt.PoolSize = 10 * int64(runtime.GOMAXPROCS(0))
 	}
 	switch opt.ReadTimeout {
 	case -1:
@@ -143,5 +146,9 @@ func (opt *Options) init() {
 		opt.MaxRetryBackoff = 0
 	case 0:
 		opt.MaxRetryBackoff = 512 * time.Millisecond
+	}
+
+	if opt.Logger == nil {
+		opt.Logger = zap.S()
 	}
 }

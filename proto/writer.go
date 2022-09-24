@@ -83,6 +83,7 @@ func (w *RESP) writeArg(v interface{}) error {
 
 func (w *RESP) writeBytes(b []byte) error {
 	bs := strconv.AppendInt([]byte{RespString}, int64(len(b)), 10)
+	bs = append(bs, '\r', '\n')
 	bs = append(bs, b...)
 	bs = append(bs, '\r', '\n')
 	if _, err := w.Writer.Write(bs); err != nil {

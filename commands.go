@@ -13,10 +13,16 @@ type Cmdable interface {
 type cmdable func(ctx context.Context, cmd Cmder) error
 
 func (c cmdable) Set(ctx context.Context, key string, val any, expiration time.Duration) *StatusCmd {
-	args := []interface{}{"SET", key}
+	args := make([]interface{}, 3, 5)
+	args[0] = "SET"
+	args[1] = key
+	args[2] = val
 	if expiration > 0 {
-		args = append(args, expiration.Microseconds())
-
+		if usePrecise(expiration) {
+			args = append(args, "px", formatMs(ctx, expiration))
+		} else {
+			args = append(args, "ex", formatSec(ctx, expiration))
+		}
 	}
 	cmd := &StatusCmd{
 		baseCmd: &baseCmd{
@@ -43,7 +49,7 @@ type Cmder interface {
 	Err() error
 	Args() []interface{}
 	ReadReply(interface{}) error
-	String() (string, error)
+	String() string
 }
 
 type baseCmd struct {
@@ -53,11 +59,11 @@ type baseCmd struct {
 }
 
 func (c *baseCmd) Err() error {
-	return nil
+	return c.err
 }
 
 func (c *baseCmd) Args() []interface{} {
-	return nil
+	return c.args
 }
 
 type StatusCmd struct {
@@ -70,8 +76,12 @@ func (cmd *StatusCmd) ReadReply(val interface{}) error {
 	return nil
 }
 
-func (cmd *StatusCmd) String() (string, error) {
-	return cmd.result, nil
+func (cmd *StatusCmd) String() string {
+	return cmd.result
+}
+
+func (cmd *StatusCmd) Result() (string, error) {
+	return cmd.result, cmd.err
 }
 
 type StringCmd struct {
@@ -84,6 +94,10 @@ func (cmd *StringCmd) ReadReply(val interface{}) error {
 	return nil
 }
 
-func (cmd *StringCmd) String() (string, error) {
-	return cmd.result, nil
+func (cmd *StringCmd) String() string {
+	return cmd.result
+}
+
+func (cmd *StringCmd) Result() (string, error) {
+	return cmd.result, cmd.err
 }

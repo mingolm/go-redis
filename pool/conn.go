@@ -7,15 +7,6 @@ import (
 	"time"
 )
 
-func NewConn(netConn net.Conn) *Conn {
-	return &Conn{
-		netConn:   netConn,
-		reader:    bufio.NewReader(netConn),
-		writer:    bufio.NewWriter(netConn),
-		createdAt: time.Now(),
-	}
-}
-
 type Conn struct {
 	netConn   net.Conn
 	reader    *bufio.Reader
@@ -24,10 +15,19 @@ type Conn struct {
 }
 
 func (c *Conn) WithWrite(ctx context.Context, wf func(*bufio.Writer) error) error {
-
+	if err := wf(c.writer); err != nil {
+		return err
+	}
+	if err := c.writer.Flush(); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (c *Conn) WithRead(ctx context.Context, rf func(*bufio.Reader) error) error {
+	if err := rf(c.reader); err != nil {
+		return err
+	}
+	c.reader.Reset(c.netConn)
 	return nil
 }

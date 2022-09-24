@@ -14,6 +14,15 @@ func NewClient(opt *Options) *Redis {
 
 	r := &Redis{
 		opt: opt,
+		connPool: pool.NewPool(&pool.Options{
+			Dialer:          opt.Dialer,
+			PoolSize:        opt.PoolSize,
+			MinIdleConns:    opt.MinIdleConns,
+			MaxIdleConns:    opt.MaxIdleConns,
+			ConnMaxIdleTime: opt.ConnMaxIdleTime,
+			ConnMaxLifetime: opt.ConnMaxLifetime,
+			Logger:          opt.Logger,
+		}),
 	}
 	r.cmdable = r.process
 
@@ -38,7 +47,7 @@ func (r *Redis) process(ctx context.Context, cmd Cmder) error {
 		if err := cn.WithRead(ctx, func(rd *bufio.Reader) error {
 			val, err := proto.NewReader(rd).Read()
 			if err != nil {
-				return nil
+				return err
 			}
 			return cmd.ReadReply(val)
 		}); err != nil {

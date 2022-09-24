@@ -40,6 +40,13 @@ func (w *RESP) Read() (interface{}, error) {
 		return i, nil
 	case RespString:
 		n, err := byteToInt(seg[1:])
+		if err != nil {
+			return nil, err
+		}
+		// -1: key expired
+		if n == -1 {
+			return nil, Nil
+		}
 		bs := make([]byte, n)
 		rn, err := w.Reader.Read(bs)
 		if err != nil {
