@@ -58,16 +58,16 @@ type Options struct {
 
 	// Maximum number of socket connections.
 	// Default is 10 connections per every available CPU as reported by runtime.GOMAXPROCS.
-	PoolSize int64
+	PoolSize int32
 	// Amount of time client waits for connection if all connections
 	// are busy before returning an error.
 	// Default is ReadTimeout + 1 second.
 	PoolTimeout time.Duration
 	// Minimum number of idle connections which is useful when establishing
 	// new connection is slow.
-	MinIdleConns int64
+	MinIdleConns int32
 	// Maximum number of idle connections.
-	MaxIdleConns int64
+	MaxIdleConns int32
 	// Amount of time after which client closes idle connections.
 	// Should be less than server's timeout.
 	// Default is 5 minutes. -1 disables idle timeout check.
@@ -109,7 +109,7 @@ func (opt *Options) init() {
 		}
 	}
 	if opt.PoolSize == 0 {
-		opt.PoolSize = 10 * int64(runtime.GOMAXPROCS(0))
+		opt.PoolSize = 10 * int32(runtime.GOMAXPROCS(0))
 	}
 	switch opt.ReadTimeout {
 	case -1:

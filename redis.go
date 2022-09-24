@@ -38,13 +38,13 @@ type Redis struct {
 
 func (r *Redis) process(ctx context.Context, cmd Cmder) error {
 	err := r.connPool.WithConn(ctx, func(ctx context.Context, cn *pool.Conn) error {
-		if err := cn.WithWrite(ctx, func(wd *bufio.Writer) error {
+		if err := cn.WithWrite(ctx, func(ctx context.Context, wd *bufio.Writer) error {
 			return proto.NewWriter(wd).Write(ctx, cmd.Args())
 		}); err != nil {
 			return err
 		}
 
-		if err := cn.WithRead(ctx, func(rd *bufio.Reader) error {
+		if err := cn.WithRead(ctx, func(ctx context.Context, rd *bufio.Reader) error {
 			val, err := proto.NewReader(rd).Read()
 			if err != nil {
 				return err
