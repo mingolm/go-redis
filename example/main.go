@@ -11,8 +11,7 @@ import (
 
 func main() {
 	redis := go_redis.NewClient(&go_redis.Options{
-		Addr:     "127.0.0.1:6379",
-		Password: "",
+		Addr: "127.0.0.1:6379",
 	})
 
 	var (

@@ -13,9 +13,8 @@ import (
 type connTyp uint8
 
 const (
-	connTypPersistence connTyp = iota // 持久化
-	connTypBackup                     // 备份
-	connTypTmp                        // 临时
+	connTypKeepalive connTyp = iota // 持久化
+	connTypTmp                      // 临时
 )
 
 type Conn struct {

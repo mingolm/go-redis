@@ -79,8 +79,8 @@ func (opt *Options) init() {
 		dialTimeout     = time.Second * 5
 		readTimeout     = time.Second * 3
 		writeTimeout    = time.Second * 3
-		minIdleConnectx = poolSize >> 4
-		maxIdleConnectx = poolSize >> 2
+		minIdleConnects = poolSize >> 1
+		maxIdleConnects = poolSize
 		connMaxIdleTime = time.Minute * 30
 		connMaxLifeTime = time.Hour
 		maxRetries      = 3
@@ -106,10 +106,10 @@ func (opt *Options) init() {
 		opt.WriteTimeout = writeTimeout
 	}
 	if opt.MinIdleConns == 0 {
-		opt.MinIdleConns = int32(minIdleConnectx)
+		opt.MinIdleConns = int32(minIdleConnects)
 	}
 	if opt.MaxIdleConns == 0 {
-		opt.MaxIdleConns = int32(maxIdleConnectx)
+		opt.MaxIdleConns = int32(maxIdleConnects)
 	}
 	if opt.ConnMaxIdleTime == 0 {
 		opt.ConnMaxIdleTime = connMaxIdleTime

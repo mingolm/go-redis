@@ -94,7 +94,7 @@ func (p *pool) Get(ctx context.Context) (*Conn, error) {
 }
 
 func (p *pool) Put(ctx context.Context, conn *Conn) error {
-	if !p.connHealthCheck(conn) {
+	if conn.typ == connTypTmp || !p.connHealthCheck(conn) {
 		return p.connClose(conn)
 	}
 
@@ -115,9 +115,9 @@ func (p *pool) addConnect() error {
 		}
 		var typ connTyp
 		if cur <= p.Options.MinIdleConns {
-			typ = connTypPersistence
+			typ = connTypKeepalive
 		} else if cur <= p.Options.MaxIdleConns {
-			typ = connTypBackup
+			typ = connTypKeepalive
 		} else {
 			typ = connTypTmp
 		}
@@ -169,7 +169,16 @@ func (p *pool) connClose(conn *Conn) error {
 	if err := conn.netConn.Close(); err != nil {
 		return err
 	}
-	p.poolSize.Store(-1)
 	conn = nil
+	if cur := p.poolSize.Add(-1); cur < p.MinIdleConns {
+		if err := p.addConnect(); err != nil {
+			return err
+		}
+	}
+
+	p.Logger.Debugw("connect close success",
+		"typ", conn.typ,
+	)
+
 	return nil
 }

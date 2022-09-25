@@ -15,6 +15,7 @@ func init() {
 	redis = NewClient(&Options{
 		Addr: "127.0.0.1:6379",
 	})
+	time.Sleep(time.Second)
 }
 
 func BenchmarkSet(b *testing.B) {
